@@ -1,0 +1,219 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { ITEMS, ICON_PATHS, type IconName } from "@/lib/items";
+import type { EngineApi } from "@/lib/engine";
+
+function Icon({ name }: { name: IconName }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {ICON_PATHS[name].map((d) => <path key={d} d={d} />)}
+    </svg>
+  );
+}
+
+type Card = { icon: IconName; where: string; title: string; line: string; info?: boolean; token?: string };
+
+const usd = (n: number) => "$" + (n >= 1 ? n.toFixed(2) : n.toPrecision(2));
+const pct = (now: number, was: number) => (was ? ((now - was) / was) * 100 : 0);
+const Change = ({ now, was }: { now: number; was: number }) => {
+  const p = pct(now, was);
+  return <span className={p < 0 ? "chg down" : "chg up"}>{p < 0 ? "▼" : "▲"} {Math.abs(p).toFixed(1)}%</span>;
+};
+
+// Parody market: packed items drift down, with the odd pointless pump.
+function tick(prices: number[]) {
+  return prices.map((p) => {
+    const pump = Math.random() < 0.08 ? 0.3 : 0;
+    return Math.max(0.0001, p * Math.exp(-0.035 + pump + (Math.random() - 0.5) * 0.14));
+  });
+}
+
+const INTRO: Card = {
+  icon: "walk",
+  info: true,
+  where: "How to play",
+  title: "You just landed in London",
+  line: "Tap anywhere on the map or use WASD / arrow keys to walk. Gold tokens near each landmark go in your pack.",
+};
+
+// Drop a rigged character at public/models/attendee.glb and it replaces the built-in one.
+const CHARACTER_URL = "/models/attendee.glb";
+
+export default function Game() {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const apiRef = useRef<EngineApi | null>(null);
+  const finalRef = useRef(false);
+  const gotRef = useRef<number[]>([]);
+  const [got, setGot] = useState<number[]>([]);
+  const [fresh, setFresh] = useState(-1);
+  const [card, setCard] = useState<Card>(INTRO);
+  const [cardKey, setCardKey] = useState(0);
+  const [showFinal, setShowFinal] = useState(false);
+  const againRef = useRef<HTMLButtonElement>(null);
+  const [prices, setPrices] = useState<number[]>(() => ITEMS.map((s) => s.price));
+  const [talked, setTalked] = useState(0);
+
+  useEffect(() => {
+    if (showFinal || !got.length) return; // market freezes on the final screen so the share text matches
+    const id = setInterval(() => setPrices((p) => { const n = tick(p); return p.map((v, i) => (got.includes(i) ? n[i] : v)); }), 1200);
+    return () => clearInterval(id);
+  }, [got, showFinal]);
+
+  const listed = got.reduce((a, i) => a + ITEMS[i].price, 0);
+  const worth = got.reduce((a, i) => a + prices[i], 0);
+
+  useEffect(() => { finalRef.current = showFinal; if (showFinal) againRef.current?.focus(); }, [showFinal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const stage = stageRef.current!, labelsEl = labelsRef.current!;
+    const fontsReady = document.fonts?.ready ?? Promise.resolve();
+    Promise.race([fontsReady, new Promise((r) => setTimeout(r, 1500))]).then(async () => {
+      if (cancelled) return;
+      const { startGame } = await import("@/lib/engine");
+      if (cancelled) return;
+      const displayFont = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim() || "sans-serif";
+      try {
+        apiRef.current = startGame(stage, {
+          labelsEl,
+          displayFont,
+          characterUrl: CHARACTER_URL,
+          isPaused: () => finalRef.current,
+          onTalk: () => setTalked((n) => n + 1),
+          onCollect: (i) => {
+            if (gotRef.current.includes(i)) return;
+            const next = [...gotRef.current, i];
+            gotRef.current = next;
+            const s = ITEMS[i];
+            setGot(next);
+            setFresh(i);
+            setCard({ icon: s.icon, where: `Packed ${next.length} of ${ITEMS.length} · ${s.place}`, title: s.item, line: s.line, token: `Tokenized as ${s.ticker} at ${usd(s.price)}` });
+            setCardKey((k) => k + 1);
+            if (next.length === ITEMS.length) setTimeout(() => setShowFinal(true), 1800);
+          },
+        });
+      } catch {
+        setShowFinal(true); // no WebGL: show the finished pack instead
+      }
+    });
+    return () => { cancelled = true; apiRef.current?.destroy(); apiRef.current = null; };
+  }, []);
+
+  const playAgain = () => {
+    apiRef.current?.reset();
+    gotRef.current = []; setGot([]); setFresh(-1); setShowFinal(false);
+    setPrices(ITEMS.map((s) => s.price)); setTalked(0);
+    setCard({ ...INTRO, title: "Round two", line: "Same rain, same pack. Tap the map or press G to get guided." });
+    setCardKey((k) => k + 1);
+  };
+
+  const share = () => {
+    const p = pct(worth, listed);
+    const text = `I tokenized my entire Breakpoint London starter pack. It's now worth ${usd(worth)} (${p < 0 ? "" : "+"}${p.toFixed(0)}%).\n\nMet ${talked} founders, 0 users.\n\n#NextStopBreakpoint`;
+    window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.origin)}`, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <>
+      <div ref={stageRef} id="stage" aria-label="Isometric 3D map of London. Walk the attendee to each landmark to collect starter pack items." />
+
+      <header className="hud-top">
+        <div>
+          <p className="eyebrow">Breakpoint 2026 · London · 15–17 Nov</p>
+          <h1>Breakpoint London Starter Pack</h1>
+          <p className="sub">Walk around London. Grab all 9 things every attendee needs.</p>
+        </div>
+        <div className="stats">
+          <div className="count"><b>{got.length}</b> / {ITEMS.length} packed</div>
+          {got.length > 0 && (<>
+            <div className="count worth" aria-label="Parody value of your tokenized pack">
+              Pack {usd(worth)} <Change now={worth} was={listed} />
+            </div>
+            <p className="dump">The longer you walk, the more it dumps.</p>
+          </>)}
+        </div>
+      </header>
+
+      <div ref={labelsRef} />
+
+      <footer className="hud-bottom">
+        <div className="card pop" key={cardKey} aria-live="polite">
+          <div className={card.info ? "ico info" : "ico"}><Icon name={card.icon} /></div>
+          <div>
+            <p className="where">{card.where}</p>
+            <div className="item">{card.title}</div>
+            <p className="line">{card.line}</p>
+            {card.token && <p className="tok">{card.token}</p>}
+          </div>
+        </div>
+        <div className="bar">
+          <div className="tray" aria-label="Starter pack items collected">
+            {ITEMS.map((s, i) => (
+              <div key={s.item} title={got.includes(i) ? `${s.item} · ${s.ticker} ${usd(prices[i])}` : s.item} className={"slot" + (got.includes(i) ? " got" : "") + (i === fresh ? " fresh" : "")}>
+                <Icon name={s.icon} />
+              </div>
+            ))}
+          </div>
+          <div className="zoom">
+            <button className="btn ghost" type="button" aria-label="Zoom out" onClick={() => apiRef.current?.zoomBy(0.8)}>−</button>
+            <button className="btn ghost" type="button" aria-label="Zoom in" onClick={() => apiRef.current?.zoomBy(1.25)}>+</button>
+          </div>
+          <button className="btn ghost" type="button" onClick={() => apiRef.current?.guide()}>Guide me</button>
+        </div>
+        <div className="hint">Tap map to walk · Tap people to chat · Scroll or pinch to zoom · G = guide</div>
+      </footer>
+
+      {showFinal && (
+        <section className="final" aria-label="Your completed starter pack">
+          <div className="final-inner">
+            <div>
+              <p className="eyebrow">Pack complete · 9 of 9 · Tokenized</p>
+              <h2>Breakpoint London Starter Pack</h2>
+            </div>
+            <div className="portfolio">
+              <div>
+                <p className="where">Portfolio value</p>
+                <div className="big">{usd(worth)}</div>
+              </div>
+              <div>
+                <p className="where">Since you tokenized it</p>
+                <div className="big"><Change now={worth} was={listed} /></div>
+              </div>
+              <div>
+                <p className="where">Networking</p>
+                <div className="big">{talked} founders · 0 users</div>
+              </div>
+            </div>
+            <div className="pack">
+              {ITEMS.map((s, i) => (
+                <div className="pk" key={s.item}>
+                  <div className="ico"><Icon name={s.icon} /></div>
+                  <div>
+                    <p className="where">{s.place}</p>
+                    <div className="item">{s.item}</div>
+                    <p className="line">{s.line}</p>
+                    <p className="tok">{s.pitch}</p>
+                    <p className="tok"><b>{s.ticker}</b> {usd(prices[i])} <Change now={prices[i]} was={s.price} /></p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="final-foot">
+              <div>
+                <span className="sig">@manthan_reddy · #NextStopBreakpoint</span>
+                <p className="fine">Parody. No real tokens, no wallet, not financial advice.</p>
+              </div>
+              <div className="final-btns">
+                <button className="btn ghost" type="button" onClick={() => setShowFinal(false)}>Back to the map</button>
+                <button className="btn ghost" type="button" onClick={share}>Share on X</button>
+                <button className="btn primary" type="button" ref={againRef} onClick={playAgain}>Play again</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
