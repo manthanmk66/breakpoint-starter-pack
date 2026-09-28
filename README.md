@@ -48,11 +48,21 @@ Import the repo on [Vercel](https://vercel.com) with the Next.js preset. No envi
 | `components/Game.tsx` | The HUD: item card, tray, pack value, final portfolio screen |
 | `app/opengraph-image.tsx` | Generates the link preview image |
 | `app/globals.css` | Styling; colors are CSS variables at the top |
+| `scripts/build-character.mjs` | Generates the player and crowd models |
 
-### Custom character
+### Character model
 
-Drop a rigged `.glb` at `public/models/attendee.glb` with animation clips named like "Idle" and "Walk",
-and it replaces the built-in character automatically.
+The player (Solana logo tee, gold backpack, Idle and Walk animations) is `public/models/attendee.glb`,
+and the crowd is `public/models/person.glb`, which the game recolours for each person. Both are
+generated from code by `scripts/build-character.mjs` (the tee print is `scripts/solana-logo.png`).
+Tweak colours or proportions there and run:
+
+```bash
+npm run character
+```
+
+Any rigged `.glb` with clips named like "Idle" and "Walk" also works as a drop-in replacement.
+If either file is missing, the game falls back to its built-in figures.
 
 ## Credits
 

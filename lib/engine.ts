@@ -8,6 +8,7 @@ export type EngineHooks = {
   labelsEl: HTMLElement;
   displayFont: string; // CSS font-family used for signs drawn on canvas
   characterUrl?: string; // optional rigged .glb, e.g. /models/attendee.glb
+  crowdUrl?: string; // optional .glb for the crowd, recoloured per person by material name
   isPaused: () => boolean; // true while the final overlay is open
   onCollect: (index: number) => void;
   onTalk?: () => void; // fired the first time each NPC speaks
@@ -185,7 +186,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
     B(20, 7.5, 10, "#F7F5F0", x, 3.75, z); B(20.2, 0.5, 10.2, "#1F2A2E", x, 7.6, z);
     sign("BREAKPOINT 2026", "#1F2A2E", "#E3A63B", 13, 2.8, x, 4.8, z + 5.02);
     B(6, 2.4, 0.1, U("#FBE3B0"), x, 1.2, z + 5.02);
-    for (let k = -2; k <= 2; k++) { Cy(0.07, 0.07, 6, "#1F2A2E", x + k * 4.2, 3, z + 6.2); B(1.2, 1.8, 0.05, k % 2 ? "#E3A63B" : "#7E9C8C", x + k * 4.2 + 0.65, 5, z + 6.2); }
+    for (const k of [-2, 2]) { Cy(0.07, 0.07, 6, "#1F2A2E", x + k * 4.2, 3, z + 6.2); B(1.2, 1.8, 0.05, k < 0 ? "#E3A63B" : "#7E9C8C", x + k * 4.2 + (k < 0 ? -0.65 : 0.65), 5, z + 6.2); } // outside the sign so they never cover it
     col(x, z, 20, 10); label("Olympia · Breakpoint", x, 11, z, false, 3);
   }
   { // Pub
@@ -229,7 +230,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
       // Invisible, fatter hit target so NPCs are easy to tap on a phone
       const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.8, 8), new THREE.MeshBasicMaterial());
       hitbox.visible = false; hitbox.position.y = 1.3; hitbox.userData.npc = i; g.add(hitbox); hitMeshes.push(hitbox);
-      npcs.push({ g, x: p[0], z: p[1], bubble: null, until: 0, talked: false });
+      npcs.push({ g, x: p[0], z: p[1], shirt: p[2], bubble: null, until: 0, talked: false });
     });
 
   function talk(i) {
@@ -266,7 +267,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
   keep(B(0.72, 0.9, 0.36, "#E3A63B", 0, 1.45, -0.5, body));
   const armPivot = (x) => { const p = new THREE.Group(); p.position.set(x, 1.8, 0); body.add(p); keep(Cy(0.13, 0.12, 0.85, "#2F5D62", 0, -0.42, 0, p)); return p; };
   const armL = armPivot(-0.55), armR = armPivot(0.55);
-  const badge = B(0.28, 0.36, 0.04, U("#E3A63B"), 0.16, 1.5, 0.47, body); badge.visible = false;
+  const badge = B(0.28, 0.36, 0.04, U("#E3A63B"), 0, 1.08, 0.47, body); badge.visible = false; // below the chest print
   const umb = new THREE.Group(); umb.position.set(0.55, 1.8, 0.1); body.add(umb);
   Cy(0.04, 0.04, 2.2, "#1F2A2E", 0, 1, 0, umb);
   const can = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.7, 10, 1, true), new THREE.MeshLambertMaterial({ color: "#C8453A", side: THREE.DoubleSide })); can.position.y = 2.2; umb.add(can);
@@ -299,6 +300,37 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
           if (walk) walkAct = mixer.clipAction(walk);
         }
       }, undefined, () => { /* no model file: keep the built-in character */ });
+    });
+  }
+
+  // Optional crowd model: one .glb cloned per person, recoloured by material name
+  const npcMixers = [];
+  const SKINS = ["#C08A62", "#8A5A3C", "#E0B08A", "#6B4630", "#F1C9A5"], HAIRS = ["#1E1A18", "#4A3222", "#8C6A3F", "#D9C48C", "#9A9A9A"];
+  const LEGS = ["#34425E", "#2A2A30", "#6E6A5E", "#4E5F7A"], SHOES = ["#F2EFE8", "#1F2A2E", "#C8453A"];
+  if (hooks.crowdUrl) {
+    import("three/examples/jsm/loaders/GLTFLoader.js").then(({ GLTFLoader }) => {
+      new GLTFLoader().load(hooks.crowdUrl, (gltf) => {
+        if (destroyed) return;
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const s = 2.4 / Math.max(0.001, box.max.y - box.min.y);
+        npcs.forEach((n, i) => {
+          const colors = { Tee: n.shirt, Skin: SKINS[i % 5], Hair: HAIRS[(i * 3) % 5], Jeans: LEGS[(i * 7) % 4], Shoe: SHOES[i % 3] };
+          const model = gltf.scene.clone();
+          model.scale.setScalar(s); model.position.y = -box.min.y * s;
+          model.traverse((o) => {
+            if (!o.isMesh) return;
+            o.castShadow = true; o.receiveShadow = true;
+            const c = colors[o.material.name];
+            if (c) { o.material = o.material.clone(); o.material.color.set(c); }
+          });
+          n.g.children.forEach((c) => (c.visible = false)); // hide the doll; the hitbox is invisible anyway and still takes taps
+          n.g.add(model);
+          if (gltf.animations.length) {
+            const m = new THREE.AnimationMixer(model), act = m.clipAction(gltf.animations[0]);
+            act.time = Math.random() * act.getClip().duration; act.play(); npcMixers.push(m);
+          }
+        });
+      }, undefined, () => { /* no crowd model: keep the built-in people */ });
     });
   }
 
@@ -531,6 +563,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
       if (bus.position.x > 38) { busDir = -1; bus.position.z = 8.6; }
       if (bus.position.x < -38) { busDir = 1; bus.position.z = 6.6; }
       bus.rotation.y = busDir > 0 ? 0 : Math.PI;
+      npcMixers.forEach((m) => m.update(dt));
       crowd.forEach((c, i) => { if (!npcs[i]?.bubble?.classList.contains("show")) c.rotation.y += Math.sin(t * 0.7 + i) * 0.004; });
       if (marker.material.opacity > 0) { const s = 1 + 0.15 * Math.sin(t * 6); marker.scale.set(s, s, s); }
     }
