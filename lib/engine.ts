@@ -233,8 +233,12 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
       npcs.push({ g, x: p[0], z: p[1], shirt: p[2], bubble: null, until: 0, talked: false });
     });
 
+  // Only one person talks at a time so bubbles never stack on top of each other
+  let speaker = -1, quietUntil = 0;
   function talk(i) {
     const n = npcs[i];
+    if (speaker >= 0 && speaker !== i) npcs[speaker].bubble.classList.remove("show");
+    speaker = i;
     if (!n.bubble) {
       const d = document.createElement("div"); d.className = "tag bubble"; hooks.labelsEl.appendChild(d);
       n.bubble = d; labels.push({ el: d, pos: new THREE.Vector3(n.x, 5.2, n.z) });
@@ -568,10 +572,13 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
       if (marker.material.opacity > 0) { const s = 1 + 0.15 * Math.sin(t * 6); marker.scale.set(s, s, s); }
     }
 
-    npcs.forEach((n, i) => {
-      if (n.bubble && t > n.until) n.bubble.classList.remove("show");
-      if (!hooks.isPaused() && !n.talked && Math.hypot(n.x - H.x, n.z - H.z) < 3.2) talk(i); // unprompted once, then tap-only
-    });
+    if (speaker >= 0 && t > npcs[speaker].until) { npcs[speaker].bubble.classList.remove("show"); speaker = -1; quietUntil = t + 1; }
+    if (speaker < 0 && t > quietUntil && !hooks.isPaused()) {
+      // Walking past a group: only the nearest person who hasn't spoken yet says something (unprompted once, then tap-only)
+      let near = -1, nd = 3.2;
+      npcs.forEach((n, i) => { const d = Math.hypot(n.x - H.x, n.z - H.z); if (!n.talked && d < nd) { nd = d; near = i; } });
+      if (near >= 0) talk(near);
+    }
 
     let zoom = zoomTarget;
     if (push && t < push.until) { zoom = Math.max(zoomTarget, 2.2); want.set(push.x, 2, push.z); }
