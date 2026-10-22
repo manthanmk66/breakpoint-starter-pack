@@ -11,6 +11,7 @@ export type EngineHooks = {
   crowdUrl?: string; // optional .glb for the crowd, recoloured per person by material name
   donors?: Array<{ handle: string; line: string }>; // fundraiser donors, added to the crowd
   sponsors?: Array<{ name: string; color: string; ink: string; line: string }>; // brand shops + tees
+  onSpot?: (spot: number) => void; // a TO LET board on an empty shop spot was tapped
   isPaused: () => boolean; // true while the final overlay is open
   onCollect: (index: number) => void;
   onTalk?: () => void; // fired the first time each NPC speaks
@@ -221,11 +222,27 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
   // Plain filler buildings. Sponsors take them over as shops, most visible first.
   const sponsors = hooks.sponsors || [];
   const SHOP_SLOTS = [7, 8, 6, 5, 3, 1, 0, 2, 4]; // near the start, by the pub, east edge, then the rest
+  const spotMeshes = [];
+  // London estate-agent board on an empty spot: tap it to see what renting it gets a sponsor
+  function toLet(spot, x, y, z, w) {
+    const c = document.createElement("canvas"); c.width = 512; c.height = 320; const g = c.getContext("2d");
+    g.fillStyle = "#FFFFFF"; g.fillRect(0, 0, 512, 320); g.fillStyle = "#C8453A"; g.fillRect(0, 0, 512, 46); g.fillRect(0, 274, 512, 46);
+    g.fillStyle = "#1F2A2E"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = `800 120px ${hooks.displayFont}, "Arial Black", sans-serif`; g.fillText("TO LET", 256, 140);
+    g.font = `800 40px ${hooks.displayFont}, "Arial Black", sans-serif`; g.fillText(`SPOT ${spot}`, 256, 228);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const bw = Math.min(w * 0.8, 3.6), m = new THREE.Mesh(new THREE.PlaneGeometry(bw, bw * 0.625), new THREE.MeshBasicMaterial({ map: t }));
+    m.position.set(x, y, z); m.userData.spot = spot; scene.add(m); spotMeshes.push(m);
+  }
   [[-42, -26, 6, 7, 5], [-24, -27, 6, 5, 4], [26, -28, 5, 9, 4], [42, -12, 4, 6, 5], [-42, -12, 4, 7, 4], [-42, 14, 4, 5, 6], [42, 12, 4, 5, 5], [-24, 26, 6, 4, 6], [26, 27, 6, 5, 4]]
     .forEach((b, idx) => {
       const [x, z, w, h, d] = b, sp = sponsors[SHOP_SLOTS.indexOf(idx)];
       col(x, z, w, d);
-      if (!sp) { B(w, h, d, ["#DDD3C2", "#CFC6B6", "#E4DCCD"][Math.abs(x + z) % 3], x, h / 2, z); return; }
+      if (!sp) {
+        B(w, h, d, ["#DDD3C2", "#CFC6B6", "#E4DCCD"][Math.abs(x + z) % 3], x, h / 2, z);
+        toLet(SHOP_SLOTS.indexOf(idx) + 1, x, Math.min(h - 1.4, 3.2), z + d / 2 + 0.03, w);
+        return;
+      }
       B(w, h, d, sp.color, x, h / 2, z); B(w + 0.3, 0.4, d + 0.3, "#1F2A2E", x, h + 0.2, z);
       sign(sp.name.toUpperCase(), sp.color, sp.ink, w * 0.85, 0.9, x, h - 0.8, z + d / 2 + 0.03);
       B(w * 0.6, 1.5, 0.1, U("#FBE3B0"), x, 1.0, z + d / 2 + 0.02);
@@ -538,6 +555,8 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
     const npcHit = ray.intersectObjects(hitMeshes, false)[0];
     if (npcHit) { talk(npcHit.object.userData.npc); return; }
+    const spotHit = ray.intersectObjects(spotMeshes, false)[0];
+    if (spotHit) { hooks.onSpot?.(spotHit.object.userData.spot); return; }
     if (ray.ray.intersectPlane(plane, hit) && Math.abs(hit.x) < BW / 2 && Math.abs(hit.z) < BD / 2) planTo(hit.x, hit.z);
   });
   function guide() {

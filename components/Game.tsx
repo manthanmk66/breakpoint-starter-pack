@@ -15,7 +15,7 @@ function Icon({ name }: { name: IconName }) {
   );
 }
 
-type Card = { icon: IconName; where: string; title: string; line: string; info?: boolean; token?: string };
+type Card = { icon: IconName; where: string; title: string; line: string; info?: boolean; token?: string; cta?: { href: string; label: string } };
 
 const usd = (n: number) => "$" + (n >= 1 ? n.toFixed(2) : n.toPrecision(2));
 const pct = (now: number, was: number) => (was ? ((now - was) / was) * 100 : 0);
@@ -60,6 +60,7 @@ export default function Game() {
   const [talked, setTalked] = useState(0);
   const [fund, setFund] = useState<{ donors: Donor[]; goal: number } | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [spotsLeft, setSpotsLeft] = useState(0);
   const donateRef = useRef(false);
   useEffect(() => { donateRef.current = donateOpen; }, [donateOpen]);
 
@@ -87,6 +88,7 @@ export default function Game() {
       const preview = new URLSearchParams(location.search).get("fund") === "preview";
       const donors = preview ? PREVIEW_DONORS : DONORS;
       if (FUND.goalUsd > 0 || preview) setFund({ donors, goal: FUND.goalUsd || 1000 });
+      setSpotsLeft(Math.max(0, 9 - activeSponsors(location.search).length));
       try {
         apiRef.current = startGame(stage, {
           labelsEl,
@@ -97,6 +99,14 @@ export default function Game() {
           sponsors: activeSponsors(location.search),
           isPaused: () => finalRef.current || donateRef.current,
           onTalk: () => setTalked((n) => n + 1),
+          onSpot: (n) => {
+            setCard({
+              icon: "card", info: true, where: `Spot ${n} · to let`, title: "Your brand could be here",
+              line: "Sponsor my trip to Breakpoint and this building turns into your shop, with people in the crowd wearing your tee and saying your line.",
+              cta: { href: "https://x.com/manthan_reddy", label: "DM @manthan_reddy" },
+            });
+            setCardKey((k) => k + 1);
+          },
           onCollect: (i) => {
             if (gotRef.current.includes(i)) return;
             const next = [...gotRef.current, i];
@@ -149,6 +159,7 @@ export default function Game() {
             <p className="dump">The longer you walk, the more it dumps.</p>
           </>)}
           {fund && <Board donors={fund.donors} goal={fund.goal} onJoin={() => setDonateOpen(true)} />}
+          {spotsLeft > 0 && <p className="dump">Brands: {spotsLeft} shops to let. Tap a TO LET sign.</p>}
         </div>
       </header>
 
@@ -162,6 +173,7 @@ export default function Game() {
             <div className="item">{card.title}</div>
             <p className="line">{card.line}</p>
             {card.token && <p className="tok">{card.token}</p>}
+            {card.cta && <a className="btn primary card-cta" href={card.cta.href} target="_blank" rel="noopener noreferrer">{card.cta.label}</a>}
           </div>
         </div>
         <div className="bar">
