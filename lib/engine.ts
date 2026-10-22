@@ -9,6 +9,8 @@ export type EngineHooks = {
   displayFont: string; // CSS font-family used for signs drawn on canvas
   characterUrl?: string; // optional rigged .glb, e.g. /models/attendee.glb
   crowdUrl?: string; // optional .glb for the crowd, recoloured per person by material name
+  donors?: Array<{ handle: string; line: string }>; // fundraiser donors, added to the crowd
+  sponsors?: Array<{ name: string; color: string; ink: string; line: string }>; // brand shops + tees
   isPaused: () => boolean; // true while the final overlay is open
   onCollect: (index: number) => void;
   onTalk?: () => void; // fired the first time each NPC speaks
@@ -187,7 +189,16 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
     sign("BREAKPOINT 2026", "#1F2A2E", "#E3A63B", 13, 2.8, x, 4.8, z + 5.02);
     B(6, 2.4, 0.1, U("#FBE3B0"), x, 1.2, z + 5.02);
     for (const k of [-2, 2]) { Cy(0.07, 0.07, 6, "#1F2A2E", x + k * 4.2, 3, z + 6.2); B(1.2, 1.8, 0.05, k < 0 ? "#E3A63B" : "#7E9C8C", x + k * 4.2 + (k < 0 ? -0.65 : 0.65), 5, z + 6.2); } // outside the sign so they never cover it
-    col(x, z, 20, 10); label("Olympia · Breakpoint", x, 11, z, false, 3);
+    // Roof branding, the biggest surface the camera sees: Solana logo plus a gold wordmark, reading upright
+    const roofY = 7.87, flat = (m) => { m.rotation.x = -Math.PI / 2; return m; };
+    const logoTex = new THREE.TextureLoader().load("/solanalogo.webp"); logoTex.colorSpace = THREE.SRGBColorSpace; logoTex.anisotropy = 4;
+    const logo = flat(new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.MeshBasicMaterial({ map: logoTex, transparent: true })));
+    logo.position.set(x - 5.5, roofY, z); scene.add(logo);
+    flat(sign("BREAKPOINT", "#1F2A2E", "#E3A63B", 10, 2, x + 4.5, roofY, z - 1.2));
+    flat(sign("LONDON · 15–17 NOV", "#1F2A2E", "#F7F5F0", 8, 1.1, x + 4.5, roofY, z + 1.4));
+    // Side wall, above the pub's roofline so it shows from the game's angle
+    sign("BP26 · LONDON", "#1F2A2E", "#E3A63B", 7, 1.3, x + 10.03, 6.3, z).rotation.y = Math.PI / 2;
+    col(x, z, 20, 10); label("Olympia · Breakpoint", x, 15, z, false, 3); // high enough to clear the roof logo
   }
   { // Pub
     const x = 18, z = 19.5;
@@ -207,8 +218,19 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
   { // Phone box
     const x = -8, z = 12; B(1.2, 2.6, 1.2, "#C8453A", x, 1.3, z); B(1.35, 0.3, 1.35, "#B23C32", x, 2.7, z); B(0.8, 1.2, 0.05, U("#FBE3B0"), x, 1.6, z + 0.62); col(x, z, 1.3, 1.3);
   }
+  // Plain filler buildings. Sponsors take them over as shops, most visible first.
+  const sponsors = hooks.sponsors || [];
+  const SHOP_SLOTS = [7, 8, 6, 5, 3, 1, 0, 2, 4]; // near the start, by the pub, east edge, then the rest
   [[-42, -26, 6, 7, 5], [-24, -27, 6, 5, 4], [26, -28, 5, 9, 4], [42, -12, 4, 6, 5], [-42, -12, 4, 7, 4], [-42, 14, 4, 5, 6], [42, 12, 4, 5, 5], [-24, 26, 6, 4, 6], [26, 27, 6, 5, 4]]
-    .forEach((b) => { B(b[2], b[3], b[4], ["#DDD3C2", "#CFC6B6", "#E4DCCD"][Math.abs(b[0] + b[1]) % 3], b[0], b[3] / 2, b[1]); col(b[0], b[1], b[2], b[4]); });
+    .forEach((b, idx) => {
+      const [x, z, w, h, d] = b, sp = sponsors[SHOP_SLOTS.indexOf(idx)];
+      col(x, z, w, d);
+      if (!sp) { B(w, h, d, ["#DDD3C2", "#CFC6B6", "#E4DCCD"][Math.abs(x + z) % 3], x, h / 2, z); return; }
+      B(w, h, d, sp.color, x, h / 2, z); B(w + 0.3, 0.4, d + 0.3, "#1F2A2E", x, h + 0.2, z);
+      sign(sp.name.toUpperCase(), sp.color, sp.ink, w * 0.85, 0.9, x, h - 0.8, z + d / 2 + 0.03);
+      B(w * 0.6, 1.5, 0.1, U("#FBE3B0"), x, 1.0, z + d / 2 + 0.02);
+      label(sp.name, x, h + 3, z);
+    });
 
   // Crowd
   const crowd = [];
@@ -223,15 +245,32 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
   const hitMeshes = [];
   const lines = [...NPC_LINES].sort(() => Math.random() - 0.5);
   let nextLine = 0;
+  // own = a fixed line (donors, sponsored tees); print = text on the tee
+  function addNpc(x, z, shirt, own?, print?) {
+    const i = npcs.length;
+    const g = person(x, z, shirt); g.rotation.y = Math.random() * 6; g.scale.setScalar(1.35); crowd.push(g);
+    // Invisible, fatter hit target so NPCs are easy to tap on a phone
+    const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.8, 8), new THREE.MeshBasicMaterial());
+    hitbox.visible = false; hitbox.position.y = 1.3; hitbox.userData.npc = i; g.add(hitbox); hitMeshes.push(hitbox);
+    npcs.push({ g, x, z, shirt, own, print, bubble: null, until: 0, talked: false });
+  }
   [[-4, 25.4, "#7E9C8C"], [-3, 26.2, "#E3A63B"], [7, 25.8, "#C8453A"], [8, 26.6, "#5B6A6E"], [11, 25.6, "#9DBBC6"], [21.5, 24.6, "#E3A63B"], [15, 25, "#7E9C8C"], [31, -12.6, "#C8453A"], [35, -13.2, "#E3A63B"],
     [-26, 20, "#23408E"], [-20, 25.5, "#C8453A"], [-24, -10, "#5B6A6E"], [-8, -10, "#E3A63B"], [12, -11, "#7E9C8C"], [38, 26, "#9DBBC6"]]
-    .forEach((p, i) => {
-      const g = person(p[0], p[1], p[2]); g.rotation.y = Math.random() * 6; g.scale.setScalar(1.35); crowd.push(g);
-      // Invisible, fatter hit target so NPCs are easy to tap on a phone
-      const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.8, 8), new THREE.MeshBasicMaterial());
-      hitbox.visible = false; hitbox.position.y = 1.3; hitbox.userData.npc = i; g.add(hitbox); hitMeshes.push(hitbox);
-      npcs.push({ g, x: p[0], z: p[1], shirt: p[2], bubble: null, until: 0, talked: false });
-    });
+    .forEach((p) => addNpc(p[0], p[1], p[2]));
+  // Sponsors share the 15 regulars: up to three tees each, spread across the map
+  const base = npcs.length, perSponsor = Math.min(3, Math.floor(base / Math.max(1, sponsors.length)));
+  sponsors.forEach((sp, k) => { for (let j = 0; j < Math.max(1, perSponsor); j++) { const i = k + j * sponsors.length; if (i < base) Object.assign(npcs[i], { shirt: sp.color, own: sp.line, print: { text: sp.name, ink: sp.ink } }); } });
+
+  // Donors stand along the pavements either side of the river, in a fixed order so their spot never moves
+  const spots = [];
+  for (const z of [10.5, -10.5]) for (let x = -40; x <= 40; x += 3.5) {
+    const clear = !COL.some((c) => x > c.x0 - 1 && x < c.x1 + 1 && z > c.z0 - 1 && z < c.z1 + 1)
+      && ITEMS.every((s) => Math.hypot(s.x - x, s.z - z) > 3) && npcs.every((n) => Math.hypot(n.x - x, n.z - z) > 2.5);
+    if (clear) spots.push([x, z]);
+  }
+  const DONOR_TEES = ["#23408E", "#7E9C8C", "#C8453A", "#5B6A6E", "#9DBBC6", "#E3A63B", "#F2EFE8"];
+  (hooks.donors || []).slice(0, spots.length).forEach((d, i) =>
+    addNpc(spots[i][0], spots[i][1], DONOR_TEES[i % DONOR_TEES.length], `@${d.handle}: ${d.line}`, { text: `@${d.handle}` }));
 
   // Only one person talks at a time so bubbles never stack on top of each other
   let speaker = -1, quietUntil = 0;
@@ -243,7 +282,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
       const d = document.createElement("div"); d.className = "tag bubble"; hooks.labelsEl.appendChild(d);
       n.bubble = d; labels.push({ el: d, pos: new THREE.Vector3(n.x, 5.2, n.z) });
     }
-    n.bubble.textContent = lines[nextLine++ % lines.length];
+    n.bubble.textContent = n.own || lines[nextLine++ % lines.length];
     n.bubble.classList.add("show");
     n.until = t + 4.5;
     n.g.rotation.y = Math.atan2(H.x - n.x, H.z - n.z);
@@ -307,6 +346,19 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
     });
   }
 
+  // Text printed on a crowd tee (sponsor name or donor handle), in the model's own units
+  const inkFor = (hex) => { const c = new THREE.Color(hex); return c.r * 0.3 + c.g * 0.59 + c.b * 0.11 > 0.55 ? "#1F2A2E" : "#FFFFFF"; };
+  function teePrint(text, ink) {
+    const c = document.createElement("canvas"); c.width = 512; c.height = 128; const x = c.getContext("2d");
+    let fs = 84; const f = () => (x.font = `800 ${fs}px ${hooks.displayFont}, "Arial Black", sans-serif`); f();
+    while (x.measureText(text).width > 480 && fs > 20) { fs -= 4; f(); }
+    x.fillStyle = ink; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(text, 256, 64);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.155), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+    m.position.set(0, 1.46, 0.425);
+    return m;
+  }
+
   // Optional crowd model: one .glb cloned per person, recoloured by material name
   const npcMixers = [];
   const SKINS = ["#C08A62", "#8A5A3C", "#E0B08A", "#6B4630", "#F1C9A5"], HAIRS = ["#1E1A18", "#4A3222", "#8C6A3F", "#D9C48C", "#9A9A9A"];
@@ -327,6 +379,7 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
             const c = colors[o.material.name];
             if (c) { o.material = o.material.clone(); o.material.color.set(c); }
           });
+          if (n.print) model.getObjectByName("Upper")?.add(teePrint(n.print.text, n.print.ink || inkFor(n.shirt)));
           n.g.children.forEach((c) => (c.visible = false)); // hide the doll; the hitbox is invisible anyway and still takes taps
           n.g.add(model);
           if (gltf.animations.length) {

@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ITEMS, ICON_PATHS, type IconName } from "@/lib/items";
 import type { EngineApi } from "@/lib/engine";
+import { DONORS, DONOR_LINES, FUND, PREVIEW_DONORS, type Donor } from "@/lib/fundraiser";
+import { activeSponsors } from "@/lib/sponsors";
+import Donate from "./Donate";
 
 function Icon({ name }: { name: IconName }) {
   return (
@@ -55,6 +58,10 @@ export default function Game() {
   const againRef = useRef<HTMLButtonElement>(null);
   const [prices, setPrices] = useState<number[]>(() => ITEMS.map((s) => s.price));
   const [talked, setTalked] = useState(0);
+  const [fund, setFund] = useState<{ donors: Donor[]; goal: number } | null>(null);
+  const [donateOpen, setDonateOpen] = useState(false);
+  const donateRef = useRef(false);
+  useEffect(() => { donateRef.current = donateOpen; }, [donateOpen]);
 
   useEffect(() => {
     if (showFinal || !got.length) return; // market freezes on the final screen so the share text matches
@@ -76,13 +83,19 @@ export default function Game() {
       const { startGame } = await import("@/lib/engine");
       if (cancelled) return;
       const displayFont = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim() || "sans-serif";
+      // ?fund=preview shows sample donors for screenshots; ?sponsor=<id> previews a brand before it's live
+      const preview = new URLSearchParams(location.search).get("fund") === "preview";
+      const donors = preview ? PREVIEW_DONORS : DONORS;
+      if (FUND.goalUsd > 0 || preview) setFund({ donors, goal: FUND.goalUsd || 1000 });
       try {
         apiRef.current = startGame(stage, {
           labelsEl,
           displayFont,
           characterUrl: CHARACTER_URL,
           crowdUrl: CROWD_URL,
-          isPaused: () => finalRef.current,
+          donors: donors.map((d) => ({ handle: d.handle, line: DONOR_LINES[d.line] ?? DONOR_LINES[0] })),
+          sponsors: activeSponsors(location.search),
+          isPaused: () => finalRef.current || donateRef.current,
           onTalk: () => setTalked((n) => n + 1),
           onCollect: (i) => {
             if (gotRef.current.includes(i)) return;
@@ -135,6 +148,7 @@ export default function Game() {
             </div>
             <p className="dump">The longer you walk, the more it dumps.</p>
           </>)}
+          {fund && <Board donors={fund.donors} goal={fund.goal} onJoin={() => setDonateOpen(true)} />}
         </div>
       </header>
 
@@ -205,7 +219,7 @@ export default function Game() {
             <div className="final-foot">
               <div>
                 <span className="sig">@manthan_reddy · #NextStopBreakpoint</span>
-                <p className="fine">Parody. No real tokens, no wallet, not financial advice.</p>
+                <p className="fine">The tokens are a parody, not financial advice. Trip donations are real gifts, not an investment.</p>
               </div>
               <div className="final-btns">
                 <button className="btn ghost" type="button" onClick={() => setShowFinal(false)}>Back to the map</button>
@@ -216,6 +230,22 @@ export default function Game() {
           </div>
         </section>
       )}
+
+      {donateOpen && <Donate onClose={() => setDonateOpen(false)} />}
     </>
+  );
+}
+
+// Airport-style board: how much of the trip to London is covered so far
+function Board({ donors, goal, onJoin }: { donors: Donor[]; goal: number; onJoin: () => void }) {
+  const raised = donors.reduce((a, d) => a + d.usd, 0);
+  const pct = Math.min(100, Math.round((raised / goal) * 100));
+  return (
+    <div className="board" aria-label={`Trip to London ${pct}% funded by ${donors.length} people`}>
+      <div className="board-row"><span>Departures</span><span>{FUND.from} → LDN</span></div>
+      <div className="board-track"><i style={{ width: `${pct}%` }} /></div>
+      <div className="board-row"><span>{pct}% funded</span><span>{donors.length} in the crowd</span></div>
+      {FUND.wallet && <button className="btn board-btn" type="button" onClick={onJoin}>Join the crowd</button>}
+    </div>
   );
 }

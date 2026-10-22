@@ -64,6 +64,17 @@ npm run character
 Any rigged `.glb` with clips named like "Idle" and "Walk" also works as a drop-in replacement.
 If either file is missing, the game falls back to its built-in figures.
 
+## Trip fundraiser and sponsors
+
+**Donors** send SOL or USDC from the "Join the crowd" button and appear in the crowd with their @ on their tee.
+Donations are added by hand: find the payment on an explorer, read its memo (`bp26 @handle L2`, where `L2`
+is the line they picked), and add them to `DONORS` in `lib/fundraiser.ts` with the dollar value at the time.
+Set `goalUsd` and `from` there too; the departures board stays hidden until `goalUsd` is set.
+
+**Sponsors** live in `lib/sponsors.ts`. Up to 9 sponsors each get a shop on the map, their name on some of the crowd's tees and
+a crowd line. They stay off the public site until `live: true`. To preview one for a pitch, open
+`/?sponsor=phantom` (or `/?sponsor=all`); `/?fund=preview` fills the crowd with sample donors for screenshots.
+
 ## Credits
 
 Design and build: [@manthan_reddy](https://x.com/manthan_reddy) · #NextStopBreakpoint

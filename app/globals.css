@@ -88,6 +88,27 @@ h1 { margin: 0; font-family: var(--font-display), "Arial Black", sans-serif; fon
 .portfolio .chg.down { color: #F08A7E; }
 .portfolio .chg.up { color: #9FD8B4; }
 .fine { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.board { pointer-events: auto; width: 230px; background: #15191B; color: #F5C451; border-radius: 12px; padding: 10px 12px; font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; box-shadow: 0 6px 18px rgba(31, 42, 46, .2); }
+.board-row { display: flex; justify-content: space-between; gap: 8px; }
+.board-track { height: 6px; margin: 8px 0; background: #2C3236; border-radius: 3px; overflow: hidden; }
+.board-track i { display: block; height: 100%; background: #F5C451; transition: width .6s ease; }
+.board-btn { width: 100%; margin-top: 10px; min-height: 36px; font-size: 13px; background: #F5C451; color: #15191B; letter-spacing: 0; text-transform: none; }
+.donate-inner { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 32px rgba(31, 42, 46, .14); }
+.donate h2 { font-size: clamp(24px, 4vw, 34px); }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
+.field input, .field select { font: 400 15px var(--font-body), system-ui, sans-serif; min-height: 44px; padding: 0 12px; border: 1.5px solid rgba(31, 42, 46, .18); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; }
+.field input:focus-visible, .field select:focus-visible { outline: 3px solid var(--gold); outline-offset: 1px; }
+.amount { display: flex; gap: 8px; }
+.amount input { flex: 1; }
+.seg { display: flex; border: 1.5px solid rgba(31, 42, 46, .18); border-radius: 10px; overflow: hidden; }
+.seg button { font: 700 14px var(--font-body), system-ui, sans-serif; border: 0; background: #fff; color: var(--muted); padding: 0 14px; min-height: 41px; cursor: pointer; }
+.seg button.on { background: var(--ink); color: #fff; }
+.pay { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; align-items: center; }
+.qr { width: 160px; height: 160px; background: #fff; }
+.qr svg { width: 100%; height: 100%; display: block; }
+.pay-side { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.pay-side .btn { display: inline-grid; place-items: center; text-decoration: none; }
+.link { font: inherit; color: var(--gold-ink); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; word-break: break-all; }
 .final-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .final-btns { display: flex; gap: 8px; }
 .sig { font-family: var(--font-mono), ui-monospace, monospace; font-size: 13px; color: var(--muted); }
@@ -108,5 +129,7 @@ h1 { margin: 0; font-family: var(--font-display), "Arial Black", sans-serif; fon
   .portfolio { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .tag.bubble { max-width: 170px; font-size: 11px; }
   .final-btns { flex-wrap: wrap; }
+  .board { width: 180px; font-size: 10px; padding: 8px 10px; }
+  .pay { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 }
 @media (prefers-reduced-motion: reduce) { .card.pop, .slot.fresh { animation: none; } .tag.bubble { transition: none; } }
