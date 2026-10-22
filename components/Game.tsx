@@ -250,13 +250,14 @@ export default function Game() {
 
 // Airport-style board: how much of the trip to London is covered so far
 function Board({ donors, goal, onJoin }: { donors: Donor[]; goal: number; onJoin: () => void }) {
-  const raised = donors.reduce((a, d) => a + d.usd, 0);
-  const pct = Math.min(100, Math.round((raised / goal) * 100));
+  const raised = FUND.alreadyUsd + donors.reduce((a, d) => a + d.usd, 0);
+  // The share stays off screen; the bar shows the true amount, with a small floor so the first donor is visible
+  const fill = raised > 0 ? Math.min(100, Math.max(4, (raised / goal) * 100)) : 0;
   return (
-    <div className="board" aria-label={`Trip to London ${pct}% funded by ${donors.length} people`}>
+    <div className="board" aria-label={raised > 0 ? `Trip to London: ${donors.length} people in the crowd` : "Trip to London: boarding open"}>
       <div className="board-row"><span>Departures</span><span>{FUND.from} → LDN</span></div>
-      <div className="board-track"><i style={{ width: `${pct}%` }} /></div>
-      <div className="board-row"><span>{pct}% funded</span><span>{donors.length} in the crowd</span></div>
+      <div className={raised > 0 ? "board-track" : "board-track open"}><i style={{ width: `${fill}%` }} /></div>
+      <div className="board-row"><span>{donors.length ? `${donors.length} in the crowd` : "Gate open"}</span><span>{raised > 0 ? "Boarding" : "Be the first"}</span></div>
       {FUND.wallet && <button className="btn board-btn" type="button" onClick={onJoin}>Join the crowd</button>}
     </div>
   );

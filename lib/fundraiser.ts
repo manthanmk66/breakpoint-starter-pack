@@ -4,6 +4,7 @@
 export const FUND = {
   wallet: "D9SUSzFB66kjbd8ykb5jX5TA4c4EZnVWPwB1tupm8U6c", // your Solana address; the "Join the crowd" button stays hidden until this is set
   goalUsd: 6000, // whole trip in USD: flight, visa and stay
+  alreadyUsd: 0, // money you actually have for the trip outside the game (savings, pledges); counts toward the board
   from: "BOM", // three letters for the departures board
 };
 

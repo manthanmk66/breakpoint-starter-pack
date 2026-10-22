@@ -61,6 +61,11 @@ h1 { margin: 0; font-family: var(--font-display), "Arial Black", sans-serif; fon
 .ghost:hover { background: rgba(255, 255, 255, 0.8); transform: translateY(-1px); }
 .zoom { display: flex; gap: 6px; }
 .zoom .btn { width: 44px; padding: 0; font-size: 20px; line-height: 1; }
+/* BP26 sky: purple at the top fading into a black skyline, like solana.com/breakpoint */
+#stage { background: radial-gradient(ellipse 70% 55% at 75% 0%, #B884FF 0%, rgba(184, 132, 255, 0) 70%), linear-gradient(180deg, #8F55E8 0%, #6A35C9 38%, #2A1150 70%, #000 100%); }
+.hud-top h1 { color: #FFFFFF; }
+.hud-top .eyebrow { color: #14F195; }
+.hud-top .sub, .hud-top .dump, .hud-bottom .hint { color: rgba(255, 255, 255, .78); }
 .hint { font-family: var(--font-mono), ui-monospace, monospace; font-size: 11px; color: var(--muted); letter-spacing: .05em; }
 
 .tag { position: fixed; left: 0; top: 0; z-index: 2; pointer-events: none; font: 600 13px var(--font-body), system-ui, sans-serif; background: #fff; color: var(--ink); padding: 6px 11px; border-radius: 10px; white-space: nowrap; box-shadow: 0 4px 14px rgba(31, 42, 46, .1); will-change: transform; display: flex; align-items: center; gap: 6px; }
@@ -93,6 +98,9 @@ h1 { margin: 0; font-family: var(--font-display), "Arial Black", sans-serif; fon
 .board-row { display: flex; justify-content: space-between; gap: 8px; }
 .board-track { height: 6px; margin: 8px 0; background: #2C3236; border-radius: 3px; overflow: hidden; }
 .board-track i { display: block; height: 100%; background: #F5C451; transition: width .6s ease; }
+/* Nothing raised yet: a shimmer says "boarding open" without claiming any amount */
+.board-track.open { background: linear-gradient(90deg, #2C3236 0%, #2C3236 35%, rgba(245, 196, 81, .55) 50%, #2C3236 65%, #2C3236 100%); background-size: 250% 100%; animation: gate 2.4s linear infinite; }
+@keyframes gate { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 .board-btn { width: 100%; margin-top: 10px; min-height: 36px; font-size: 13px; background: #F5C451; color: #15191B; letter-spacing: 0; text-transform: none; }
 .donate-inner { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 32px rgba(31, 42, 46, .14); }
 .donate h2 { font-size: clamp(24px, 4vw, 34px); }
@@ -130,7 +138,8 @@ h1 { margin: 0; font-family: var(--font-display), "Arial Black", sans-serif; fon
   .portfolio { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .tag.bubble { max-width: 170px; font-size: 11px; }
   .final-btns { flex-wrap: wrap; }
-  .board { width: 180px; font-size: 10px; padding: 8px 10px; }
+  .board { width: 180px; font-size: 10px; padding: 8px 10px; letter-spacing: .01em; }
+  .board-row span { white-space: nowrap; }
   .pay { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 }
-@media (prefers-reduced-motion: reduce) { .card.pop, .slot.fresh { animation: none; } .tag.bubble { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .card.pop, .slot.fresh, .board-track.open { animation: none; } .tag.bubble { transition: none; } }

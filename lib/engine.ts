@@ -32,14 +32,14 @@ export function startGame(stage: HTMLElement, hooks: EngineHooks): EngineApi {
   const disposers: Array<() => void> = [];
   const on = (t, ev, fn, opt?) => { t.addEventListener(ev, fn, opt); disposers.push(() => t.removeEventListener(ev, fn, opt)); };
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // transparent: the BP26 sky is a CSS gradient behind the canvas
+  renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#E9E6DF");
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 500);
   const CAMDIR = new THREE.Vector3(1, 0.95, 1).normalize();
   const LOOK = new THREE.Vector3(0, 5, 0);
